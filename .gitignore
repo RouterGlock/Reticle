@@ -1,8 +1,7 @@
 .DS_Store
 *.pyc
 __pycache__/
-# local test fixtures / scratch scans
-*.jpg
-*.jpeg
-*.png
-!web/**/*.png
+# scratch decode fixtures
+web/_demo_qr.*
+/qr_*.png
+/qr_*.jpg

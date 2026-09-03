@@ -12,6 +12,8 @@ Two front ends, one decoder core ([zxing-cpp](https://github.com/zxing-cpp/zxing
 | **`scancode`** | command-line decoder for image files (macOS/Linux) |
 | **`web/reticle.html`** | single-file browser app — live camera + drop/paste a photo, nothing leaves the page |
 
+![The Reticle web app after decoding a QR photo: the image sits in the scan stage, and a result panel below names the format (QR Code), classifies the payload as a URL, and shows Copy and Open link buttons.](assets/reticle-web.png)
+
 ## CLI
 
 ```

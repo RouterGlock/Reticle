@@ -487,9 +487,18 @@
   }
 
   function prettyFormat(fmt) {
-    var s = String(fmt).replace(/_/g, " ");
-    var map = { "QR CODE": "QR Code", "DATA MATRIX": "Data Matrix", "PDF 417": "PDF417", "CODE 128": "Code 128", "CODE 39": "Code 39", "CODE 93": "Code 93", "EAN 13": "EAN-13", "EAN 8": "EAN-8", "UPC A": "UPC-A", "UPC E": "UPC-E", "AZTEC": "Aztec", "ITF": "ITF", "CODABAR": "Codabar" };
-    return map[s] || s;
+    var s = fmt;
+    if (typeof s === "number") s = Z.BarcodeFormat[s];   // getBarcodeFormat() returns a numeric enum
+    s = String(s).toUpperCase().replace(/_/g, " ");
+    var map = {
+      "QR CODE": "QR Code", "MICRO QR CODE": "Micro QR", "RMQR CODE": "rMQR",
+      "DATA MATRIX": "Data Matrix", "PDF 417": "PDF417", "PDF417": "PDF417",
+      "CODE 128": "Code 128", "CODE 39": "Code 39", "CODE 93": "Code 93",
+      "EAN 13": "EAN-13", "EAN 8": "EAN-8", "UPC A": "UPC-A", "UPC E": "UPC-E",
+      "AZTEC": "Aztec", "ITF": "ITF", "CODABAR": "Codabar", "MAXICODE": "MaxiCode",
+      "RSS 14": "DataBar", "RSS EXPANDED": "DataBar Expanded"
+    };
+    return map[s] || s.replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
 
   function classify(text) {
@@ -708,7 +717,7 @@
         busy.classList.remove("on");
         if (res) {
           onHit(res.getText(), res.getBarcodeFormat());
-          setNote("Found a " + prettyFormat(res.getBarcodeFormat()) + " code" + (label ? " in " + label : "") + ".");
+          setNote("Decoded " + prettyFormat(res.getBarcodeFormat()) + (label ? " from " + label : "") + ".");
         } else {
           setNote("No code found in that image. Try a sharper crop, better light, or less glare.", true);
         }
