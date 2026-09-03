@@ -1,0 +1,8 @@
+.DS_Store
+*.pyc
+__pycache__/
+# local test fixtures / scratch scans
+*.jpg
+*.jpeg
+*.png
+!web/**/*.png

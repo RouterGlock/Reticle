@@ -1,0 +1,770 @@
+<title>Reticle</title>
+<meta name="description" content="A multi-format code scanner for camera or photo — Aztec, QR, Data Matrix, PDF417 and the 1D barcodes." />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<style>
+  :root {
+    --bg: #eef1f2;
+    --surface: #ffffff;
+    --surface-2: #f5f8f8;
+    --ink: #14191c;
+    --ink-soft: #5b676d;
+    --line: #d7dee0;
+    --line-strong: #b9c4c7;
+    --accent: #0a97a8;
+    --accent-ink: #06636e;
+    --accent-wash: #e2f2f4;
+    --good: #1f8a4c;
+    --bad: #c23b3b;
+    --shadow: 0 1px 2px rgba(20, 25, 28, .06), 0 8px 24px rgba(20, 25, 28, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1214;
+      --surface: #161c1f;
+      --surface-2: #1b2327;
+      --ink: #e7ecee;
+      --ink-soft: #93a1a6;
+      --line: #2b3438;
+      --line-strong: #3c484d;
+      --accent: #2cc4d6;
+      --accent-ink: #83e1eb;
+      --accent-wash: #123338;
+      --good: #4cc47f;
+      --bad: #e26d6d;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px rgba(0, 0, 0, .35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1214;
+    --surface: #161c1f;
+    --surface-2: #1b2327;
+    --ink: #e7ecee;
+    --ink-soft: #93a1a6;
+    --line: #2b3438;
+    --line-strong: #3c484d;
+    --accent: #2cc4d6;
+    --accent-ink: #83e1eb;
+    --accent-wash: #123338;
+    --good: #4cc47f;
+    --bad: #e26d6d;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px rgba(0, 0, 0, .35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  header { display: flex; flex-direction: column; gap: 6px; }
+  .brand { display: flex; align-items: baseline; gap: 12px; }
+  h1 {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .brand .mark {
+    width: 15px; height: 15px;
+    border: 2px solid var(--accent);
+    border-radius: 3px;
+    position: relative;
+    flex: none;
+    transform: translateY(-1px);
+  }
+  .brand .mark::after {
+    content: "";
+    position: absolute; inset: 3px;
+    background: var(--accent);
+    border-radius: 1px;
+  }
+  .tagline { color: var(--ink-soft); font-size: 14.5px; margin: 0; text-wrap: pretty; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+  }
+  .panel-pad { padding: 18px; }
+
+  /* ---- stage ---- */
+  .stage {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: var(--surface-2);
+    border-radius: 13px 13px 0 0;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+  }
+  #video, #preview {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: none;
+  }
+  .stage.mode-camera #video { display: block; object-fit: cover; }
+  .stage.mode-image #preview { display: block; }
+
+  .stage-hint {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    padding: 0 28px;
+    max-width: 340px;
+  }
+  .stage.mode-camera .stage-hint,
+  .stage.mode-image .stage-hint { display: none; }
+  .stage-hint svg { width: 34px; height: 34px; opacity: .55; margin-bottom: 8px; }
+
+  .reticle {
+    position: absolute;
+    z-index: 3;
+    width: 58%;
+    aspect-ratio: 1;
+    display: none;
+    pointer-events: none;
+  }
+  .stage.mode-camera .reticle { display: block; }
+  .reticle span {
+    position: absolute;
+    width: 24px; height: 24px;
+    border: 2.5px solid var(--accent);
+  }
+  .reticle span:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-radius: 4px 0 0 0; }
+  .reticle span:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-radius: 0 4px 0 0; }
+  .reticle span:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 4px; }
+  .reticle span:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-radius: 0 0 4px 0; }
+  .reticle .sweep {
+    position: absolute;
+    left: 2px; right: 2px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    top: 0;
+    animation: sweep 2.4s ease-in-out infinite;
+  }
+  @keyframes sweep {
+    0%, 100% { top: 4%; opacity: .3; }
+    50% { top: 96%; opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reticle .sweep { animation: none; top: 50%; }
+  }
+
+  .busy {
+    position: absolute; z-index: 4;
+    bottom: 10px; left: 50%; transform: translateX(-50%);
+    background: color-mix(in srgb, var(--ink) 82%, transparent);
+    color: var(--bg);
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    display: none;
+  }
+  .busy.on { display: block; }
+
+  /* ---- controls ---- */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 14px;
+    border-top: 1px solid var(--line);
+  }
+  button {
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--surface-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    padding: 9px 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: background .12s, border-color .12s, transform .05s;
+  }
+  button:hover { background: var(--accent-wash); border-color: var(--accent); }
+  button:active { transform: translateY(1px); }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  :root[data-theme="dark"] button.primary,
+  button.primary { color: #04252a; }
+  button.primary:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button svg { width: 15px; height: 15px; }
+  button[hidden] { display: none; }
+
+  .note {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    padding: 0 14px 14px;
+    margin: -4px 0 0;
+  }
+  .note.err { color: var(--bad); font-weight: 500; }
+
+  /* ---- result ---- */
+  .result .panel-pad { display: flex; flex-direction: column; gap: 12px; }
+  .result-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    background: var(--accent-wash);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    padding: 3px 9px;
+    border-radius: 6px;
+  }
+  .kind {
+    font-size: 12px;
+    color: var(--ink-soft);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .payload {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.5;
+    word-break: break-all;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 0;
+    white-space: pre-wrap;
+  }
+  .result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .result.empty .payload,
+  .result.empty .result-actions,
+  .result.empty .result-head { display: none; }
+  .result-placeholder { color: var(--ink-soft); font-size: 13.5px; }
+  .result:not(.empty) .result-placeholder { display: none; }
+
+  /* ---- history ---- */
+  .hist-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 4px 2px 0;
+  }
+  h2 {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .hist-clear {
+    background: none;
+    border: 0;
+    padding: 2px 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-soft);
+  }
+  .hist-clear:hover { background: none; color: var(--bad); border: 0; }
+  ul.hist { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  ul.hist:empty::after {
+    content: "No scans yet.";
+    color: var(--ink-soft);
+    font-size: 13px;
+    padding: 4px 2px;
+  }
+  .hist li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 11px 13px;
+  }
+  .hist .h-fmt {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 2px 7px;
+    flex: none;
+    min-width: 74px;
+    text-align: center;
+  }
+  .hist .h-text {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .hist .h-tag {
+    font-size: 11px;
+    color: var(--accent-ink);
+    background: var(--accent-wash);
+    border-radius: 5px;
+    padding: 2px 7px;
+    flex: none;
+  }
+  .hist .h-copy {
+    flex: none;
+    padding: 5px 9px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  footer {
+    margin-top: 6px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-size: 12.5px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  footer code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  footer .formats { color: var(--ink); }
+
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .dragging .stage { outline: 2px dashed var(--accent); outline-offset: -8px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <h1>Reticle</h1>
+    </div>
+    <p class="tagline">Point the camera at a code, or drop in a photo. Reads Aztec, QR, Data&nbsp;Matrix, PDF417 and the common 1&#8209;D barcodes &mdash; and tells you which one it found.</p>
+  </header>
+
+  <section class="panel" aria-label="Scanner">
+    <div class="stage" id="stage">
+      <video id="video" playsinline muted></video>
+      <img id="preview" alt="Image being scanned" />
+      <div class="stage-hint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M7 12h10"/>
+        </svg>
+        <div>Drop or paste an image here, load a photo, or start the camera.</div>
+      </div>
+      <div class="reticle" aria-hidden="true">
+        <span></span><span></span><span></span><span></span>
+        <div class="sweep"></div>
+      </div>
+      <div class="busy" id="busy">Scanning&hellip;</div>
+    </div>
+
+    <div class="controls">
+      <button class="primary" id="btn-cam" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        Start camera
+      </button>
+      <button id="btn-flip" type="button" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Flip
+      </button>
+      <button id="btn-file" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        Load photo
+      </button>
+      <input type="file" id="file" accept="image/*" class="sr" />
+    </div>
+    <p class="note" id="note">Tip: many phone cameras only hunt for QR. Aztec and Data&nbsp;Matrix codes need a reader like this one.</p>
+  </section>
+
+  <section class="panel result empty" id="result" aria-live="polite">
+    <div class="panel-pad">
+      <div class="result-placeholder">Decoded content will appear here.</div>
+      <div class="result-head">
+        <span class="chip" id="r-fmt">&mdash;</span>
+        <span class="kind" id="r-kind"></span>
+      </div>
+      <pre class="payload" id="r-text"></pre>
+      <div class="result-actions">
+        <button class="primary" id="r-copy" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy
+        </button>
+        <button id="r-open" type="button" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+          Open link
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section aria-label="Scan history">
+    <div class="hist-head">
+      <h2>History</h2>
+      <button class="hist-clear" id="hist-clear" type="button">Clear</button>
+    </div>
+    <ul class="hist" id="hist"></ul>
+  </section>
+
+  <footer>
+    <div><span class="formats">Formats:</span> Aztec &middot; QR Code &middot; Data Matrix &middot; PDF417 &middot; Code&nbsp;128 &middot; Code&nbsp;39 &middot; ITF &middot; Codabar &middot; EAN&#8209;13/8 &middot; UPC&#8209;A/E</div>
+    <div>Everything runs in your browser &mdash; no image or scan result leaves this page. History is stored locally on this device only.</div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var Z = window.ZXing;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var FORMATS = [
+    "AZTEC", "QR_CODE", "DATA_MATRIX", "PDF_417",
+    "CODE_128", "CODE_39", "CODE_93", "ITF", "CODABAR",
+    "EAN_13", "EAN_8", "UPC_A", "UPC_E"
+  ];
+  var hints = new Map();
+  hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, FORMATS.map(function (f) { return Z.BarcodeFormat[f]; }));
+  hints.set(Z.DecodeHintType.TRY_HARDER, true);
+
+  var reader = new Z.BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
+
+  var stage = $("stage");
+  var video = $("video");
+  var preview = $("preview");
+  var busy = $("busy");
+  var note = $("note");
+  var btnCam = $("btn-cam");
+  var btnFlip = $("btn-flip");
+  var fileInput = $("file");
+
+  var camOn = false;
+  var facing = "environment";
+
+  function setNote(msg, isErr) {
+    note.textContent = msg;
+    note.classList.toggle("err", !!isErr);
+  }
+
+  function prettyFormat(fmt) {
+    var s = String(fmt).replace(/_/g, " ");
+    var map = { "QR CODE": "QR Code", "DATA MATRIX": "Data Matrix", "PDF 417": "PDF417", "CODE 128": "Code 128", "CODE 39": "Code 39", "CODE 93": "Code 93", "EAN 13": "EAN-13", "EAN 8": "EAN-8", "UPC A": "UPC-A", "UPC E": "UPC-E", "AZTEC": "Aztec", "ITF": "ITF", "CODABAR": "Codabar" };
+    return map[s] || s;
+  }
+
+  function classify(text) {
+    var t = text.trim();
+    if (/^https?:\/\//i.test(t)) return { kind: "URL", url: t };
+    if (/^(mailto:|tel:|sms:|geo:|bitcoin:)/i.test(t)) return { kind: t.split(":")[0].toUpperCase() + " link" };
+    if (/^WIFI:/i.test(t)) return { kind: "Wi-Fi network" };
+    if (/^BEGIN:VCARD/i.test(t)) return { kind: "Contact card" };
+    if (/^BEGIN:VEVENT/i.test(t)) return { kind: "Calendar event" };
+    if (/^otpauth:\/\//i.test(t)) return { kind: "2FA secret" };
+    if (/^[0-9]+$/.test(t)) return { kind: t.length + "-digit number" };
+    if (/^[A-Z0-9\-]+$/i.test(t) && t.length <= 24) return { kind: "Short code" };
+    return { kind: "Text" };
+  }
+
+  // ---------- result rendering ----------
+  var result = $("result");
+  var rFmt = $("r-fmt"), rKind = $("r-kind"), rText = $("r-text"), rCopy = $("r-copy"), rOpen = $("r-open");
+  var currentText = "";
+
+  function showResult(text, fmt) {
+    currentText = text;
+    var c = classify(text);
+    rFmt.textContent = prettyFormat(fmt);
+    rKind.textContent = c.kind;
+    rText.textContent = text;
+    result.classList.remove("empty");
+    if (c.url) {
+      rOpen.hidden = false;
+      rOpen.onclick = function () { window.open(c.url, "_blank", "noopener"); };
+    } else {
+      rOpen.hidden = true;
+    }
+  }
+
+  rCopy.onclick = function () { copy(currentText, rCopy); };
+
+  function copy(text, btn) {
+    var done = function () {
+      if (!btn) return;
+      var label = btn.querySelector("svg") ? null : btn.textContent;
+      var old = btn.innerHTML;
+      btn.innerHTML = "Copied";
+      setTimeout(function () { btn.innerHTML = old; }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text); done(); });
+    } else { legacyCopy(text); done(); }
+  }
+  function legacyCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  // ---------- history ----------
+  var KEY = "reticle.history.v1";
+  var hist = [];
+  var histEl = $("hist");
+
+  function loadHist() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) hist = JSON.parse(raw);
+    } catch (e) { hist = []; }
+    if (!Array.isArray(hist) || !hist.length) {
+      hist = [{
+        fmt: "Aztec",
+        text: "048275163",
+        tag: "wristband photo",
+        t: Date.now()
+      }];
+    }
+    renderHist();
+  }
+  function saveHist() {
+    try { localStorage.setItem(KEY, JSON.stringify(hist.slice(0, 50))); } catch (e) {}
+  }
+  function addHist(text, fmt) {
+    if (hist.length && hist[0].text === text && hist[0].fmt === prettyFormat(fmt)) return;
+    hist.unshift({ fmt: prettyFormat(fmt), text: text, t: Date.now() });
+    hist = hist.slice(0, 50);
+    saveHist();
+    renderHist();
+  }
+  function renderHist() {
+    histEl.innerHTML = "";
+    hist.forEach(function (h) {
+      var li = document.createElement("li");
+      var f = document.createElement("span");
+      f.className = "h-fmt"; f.textContent = h.fmt;
+      var tx = document.createElement("span");
+      tx.className = "h-text"; tx.textContent = h.text; tx.title = h.text;
+      li.appendChild(f); li.appendChild(tx);
+      if (h.tag) {
+        var tg = document.createElement("span");
+        tg.className = "h-tag"; tg.textContent = h.tag;
+        li.appendChild(tg);
+      }
+      var cp = document.createElement("button");
+      cp.className = "h-copy"; cp.type = "button"; cp.textContent = "Copy";
+      cp.onclick = function () { copy(h.text, cp); };
+      li.appendChild(cp);
+      histEl.appendChild(li);
+    });
+  }
+  $("hist-clear").onclick = function () {
+    hist = []; saveHist(); renderHist();
+  };
+
+  function onHit(text, fmt) {
+    showResult(text, fmt);
+    addHist(text, fmt);
+  }
+
+  // ---------- camera ----------
+  function startCam() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setNote("This browser won't grant camera access here. Load a photo instead — or open Reticle in its own browser tab.", true);
+      return;
+    }
+    stopImage();
+    reader.decodeFromConstraints(
+      { video: { facingMode: { ideal: facing } } },
+      video,
+      function (res, err) {
+        if (res) onHit(res.getText(), res.getBarcodeFormat());
+      }
+    ).then(function () {
+      camOn = true;
+      stage.classList.add("mode-camera");
+      btnCam.innerHTML = stopIcon() + " Stop camera";
+      btnFlip.hidden = false;
+      setNote("Hold steady and fill the bracket with the code. It scans continuously.");
+    }).catch(function (e) {
+      var m = "Couldn't start the camera.";
+      if (e && (e.name === "NotAllowedError" || e.name === "SecurityError")) m = "Camera permission was blocked. Allow it for this page, or load a photo instead.";
+      else if (e && e.name === "NotFoundError") m = "No camera found on this device. Load a photo instead.";
+      else if (e && e.name === "NotReadableError") m = "The camera is in use by another app. Close that and try again.";
+      setNote(m, true);
+    });
+  }
+  function stopCam() {
+    try { reader.reset(); } catch (e) {}
+    camOn = false;
+    stage.classList.remove("mode-camera");
+    btnCam.innerHTML = camIcon() + " Start camera";
+    btnFlip.hidden = true;
+  }
+  function stopImage() {
+    stage.classList.remove("mode-image");
+    preview.removeAttribute("src");
+  }
+
+  btnCam.onclick = function () { camOn ? stopCam() : startCam(); };
+  btnFlip.onclick = function () {
+    facing = facing === "environment" ? "user" : "environment";
+    if (camOn) { stopCam(); startCam(); }
+  };
+
+  function camIcon() { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>'; }
+  function stopIcon() { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>'; }
+
+  // ---------- image decode ----------
+  var canvas = document.createElement("canvas");
+  var ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  function decodeImageElement(img) {
+    var attempts = [];
+    var base = Math.max(img.naturalWidth, img.naturalHeight) || 1000;
+    var scales = base < 900 ? [2, 3, 1.5, 4] : base > 3000 ? [0.6, 1, 0.4] : [1, 1.6, 0.75, 2.4];
+    scales.forEach(function (s) {
+      attempts.push({ scale: s, contrast: false });
+      attempts.push({ scale: s, contrast: true });
+    });
+
+    return (function next(i) {
+      if (i >= attempts.length) return Promise.resolve(null);
+      var a = attempts[i];
+      var w = Math.round(img.naturalWidth * a.scale);
+      var h = Math.round(img.naturalHeight * a.scale);
+      if (w < 40 || h < 40 || w > 6000 || h > 6000) return next(i + 1);
+      canvas.width = w; canvas.height = h;
+      ctx.filter = a.contrast ? "grayscale(1) contrast(1.9) brightness(1.05)" : "none";
+      ctx.drawImage(img, 0, 0, w, h);
+      var url;
+      try { url = canvas.toDataURL("image/png"); } catch (e) { return Promise.resolve(null); }
+      var probe = new Image();
+      return new Promise(function (resolve) {
+        probe.onload = function () {
+          reader.decodeFromImageElement(probe)
+            .then(function (res) { resolve(res); })
+            .catch(function () { resolve(null); });
+        };
+        probe.onerror = function () { resolve(null); };
+        probe.src = url;
+      }).then(function (res) {
+        if (res) return res;
+        return next(i + 1);
+      });
+    })(0);
+  }
+
+  function handleImage(src, label) {
+    if (camOn) stopCam();
+    stopImage();
+    setNote("Reading image…");
+    busy.classList.add("on");
+    var img = new Image();
+    img.onload = function () {
+      preview.src = src;
+      stage.classList.add("mode-image");
+      decodeImageElement(img).then(function (res) {
+        busy.classList.remove("on");
+        if (res) {
+          onHit(res.getText(), res.getBarcodeFormat());
+          setNote("Found a " + prettyFormat(res.getBarcodeFormat()) + " code" + (label ? " in " + label : "") + ".");
+        } else {
+          setNote("No code found in that image. Try a sharper crop, better light, or less glare.", true);
+        }
+      });
+    };
+    img.onerror = function () {
+      busy.classList.remove("on");
+      setNote("Couldn't load that file as an image.", true);
+    };
+    img.src = src;
+  }
+
+  function readFile(file) {
+    if (!file || !/^image\//.test(file.type)) {
+      setNote("That's not an image file.", true);
+      return;
+    }
+    var fr = new FileReader();
+    fr.onload = function () { handleImage(fr.result, "the photo"); };
+    fr.onerror = function () { setNote("Couldn't read that file.", true); };
+    fr.readAsDataURL(file);
+  }
+
+  $("btn-file").onclick = function () { fileInput.click(); };
+  fileInput.onchange = function () { if (fileInput.files && fileInput.files[0]) readFile(fileInput.files[0]); fileInput.value = ""; };
+
+  // drag & drop
+  ["dragenter", "dragover"].forEach(function (ev) {
+    document.addEventListener(ev, function (e) { e.preventDefault(); document.body.classList.add("dragging"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    document.addEventListener(ev, function (e) {
+      e.preventDefault();
+      if (ev === "drop" || e.relatedTarget === null) document.body.classList.remove("dragging");
+    });
+  });
+  document.addEventListener("drop", function (e) {
+    var dt = e.dataTransfer;
+    if (!dt) return;
+    if (dt.files && dt.files[0]) { readFile(dt.files[0]); return; }
+    var url = dt.getData("text/uri-list") || dt.getData("text/plain");
+    if (url && /^https?:\/\//i.test(url)) handleImage(url, "the image");
+  });
+
+  // paste
+  document.addEventListener("paste", function (e) {
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.indexOf("image") === 0) {
+        var f = items[i].getAsFile();
+        if (f) { readFile(f); e.preventDefault(); return; }
+      }
+    }
+  });
+
+  loadHist();
+})();
+</script>

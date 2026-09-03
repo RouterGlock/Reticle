@@ -1,0 +1,4 @@
+#!/bin/sh
+# scancode - decode QR / Aztec / Data Matrix / PDF417 / 1-D barcodes from images.
+# Thin wrapper around the self-contained venv created by install.sh.
+exec "$HOME/.local/share/reticle/venv/bin/python" "$HOME/.local/share/reticle/scancode.py" "$@"
