@@ -1,5 +1,8 @@
 <title>Reticle</title>
 <meta name="description" content="A multi-format code scanner for camera or photo — Aztec, QR, Data Matrix, PDF417 and the 1D barcodes." />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<meta property="og:image" content="assets/icon-512.png" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
@@ -79,18 +82,10 @@
     text-wrap: balance;
   }
   .brand .mark {
-    width: 15px; height: 15px;
-    border: 2px solid var(--accent);
-    border-radius: 3px;
-    position: relative;
+    width: 26px; height: 26px;
+    color: var(--accent);
     flex: none;
     transform: translateY(-1px);
-  }
-  .brand .mark::after {
-    content: "";
-    position: absolute; inset: 3px;
-    background: var(--accent);
-    border-radius: 1px;
   }
   .tagline { color: var(--ink-soft); font-size: 14.5px; margin: 0; text-wrap: pretty; }
 
@@ -376,7 +371,10 @@
 <div class="wrap">
   <header>
     <div class="brand">
-      <span class="mark" aria-hidden="true"></span>
+      <svg class="mark" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+        <rect x="2.5" y="2.5" width="19" height="19" rx="4.5" stroke="currentColor" stroke-width="2.4"/>
+        <rect x="9.4" y="9.4" width="5.2" height="5.2" rx="1.2" fill="currentColor"/>
+      </svg>
       <h1>Reticle</h1>
     </div>
     <p class="tagline">Point the camera at a code, or drop in a photo. Reads Aztec, QR, Data&nbsp;Matrix, PDF417 and the common 1&#8209;D barcodes &mdash; and tells you which one it found.</p>
