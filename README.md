@@ -70,4 +70,4 @@ Code 128 · Code 93 · Code 39 · Codabar · ITF · DataBar · EAN‑13/8 · UPC
 
 ## License
 
-MIT
+MIT © 2026 RouterGlock — see [LICENSE](LICENSE).
