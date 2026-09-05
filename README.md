@@ -71,8 +71,10 @@ and **Open in a tab**, which reloads it as its own top-level page.
 worker precaches the app, so once installed it launches and scans with no
 network at all.
 
-Served by GitHub Pages from **main → /docs**, it lives at
-<https://routerglock.github.io/reticle/>.
+Enable it under **Settings → Pages → Deploy from a branch**, picking the
+branch you want and the **`/docs`** folder. From `main` it lives at
+<https://routerglock.github.io/Reticle/> — note the capital `R`, since Pages
+paths carry the repository's own capitalisation.
 
 - **iPhone/iPad** — open it in Safari, tap Share, then **Add to Home Screen**.
 - **Android** — Chrome offers an install prompt; the app's **Install app** button
