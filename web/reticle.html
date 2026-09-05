@@ -1,8 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Reticle</title>
 <meta name="description" content="A multi-format code scanner for camera or photo — Aztec, QR, Data Matrix, PDF417 and the 1D barcodes." />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<!-- Non-blocking: the app must paint even if Google Fonts is slow or blocked. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      media="print" onload="this.media='all'" />
+<style>
+  :root { color-scheme: light dark; }
+  html, body { margin: 0; padding: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
 <style>
   :root {
     --bg: #eef1f2;
@@ -67,6 +81,9 @@
     display: flex;
     flex-direction: column;
     gap: 22px;
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 20px 14px 48px; gap: 18px; }
   }
 
   header { display: flex; flex-direction: column; gap: 6px; }
@@ -201,6 +218,7 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
+    min-height: 40px;
     transition: background .12s, border-color .12s, transform .05s;
   }
   button:hover { background: var(--accent-wash); border-color: var(--accent); }
@@ -214,6 +232,7 @@
   button.primary { color: #04252a; }
   button.primary:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .55; cursor: default; }
   button svg { width: 15px; height: 15px; }
   button[hidden] { display: none; }
 
@@ -224,6 +243,14 @@
     margin: -4px 0 0;
   }
   .note.err { color: var(--bad); font-weight: 500; }
+  .note button.inline {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 9px;
+    min-height: 0;
+    margin-left: 6px;
+    vertical-align: baseline;
+  }
 
   /* ---- result ---- */
   .result .panel-pad { display: flex; flex-direction: column; gap: 12px; }
@@ -293,6 +320,7 @@
     font-size: 12px;
     font-weight: 500;
     color: var(--ink-soft);
+    min-height: 0;
   }
   .hist-clear:hover { background: none; color: var(--bad); border: 0; }
   ul.hist { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -333,6 +361,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     flex: 1;
+    min-width: 0;
   }
   .hist .h-tag {
     font-size: 11px;
@@ -347,6 +376,11 @@
     padding: 5px 9px;
     font-size: 12px;
     font-weight: 500;
+    min-height: 0;
+  }
+  @media (max-width: 480px) {
+    .hist .h-fmt { min-width: 0; }
+    .hist li { gap: 8px; padding: 10px; }
   }
 
   footer {
@@ -408,11 +442,20 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         Flip
       </button>
+      <button id="btn-shot" type="button" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Take photo
+      </button>
       <button id="btn-file" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
         Load photo
       </button>
+      <button id="btn-tab" type="button" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+        Open in a tab
+      </button>
       <input type="file" id="file" accept="image/*" class="sr" />
+      <input type="file" id="capture" accept="image/*" capture="environment" class="sr" />
     </div>
     <p class="note" id="note">Tip: many phone cameras only hunt for QR. Aztec and Data&nbsp;Matrix codes need a reader like this one.</p>
   </section>
@@ -455,7 +498,6 @@
 <script>
 (function () {
   "use strict";
-  var Z = window.ZXing;
   var $ = function (id) { return document.getElementById(id); };
 
   var FORMATS = [
@@ -463,11 +505,6 @@
     "CODE_128", "CODE_39", "CODE_93", "ITF", "CODABAR",
     "EAN_13", "EAN_8", "UPC_A", "UPC_E"
   ];
-  var hints = new Map();
-  hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, FORMATS.map(function (f) { return Z.BarcodeFormat[f]; }));
-  hints.set(Z.DecodeHintType.TRY_HARDER, true);
-
-  var reader = new Z.BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
 
   var stage = $("stage");
   var video = $("video");
@@ -476,19 +513,126 @@
   var note = $("note");
   var btnCam = $("btn-cam");
   var btnFlip = $("btn-flip");
+  var btnFile = $("btn-file");
+  var btnShot = $("btn-shot");
+  var btnTab = $("btn-tab");
   var fileInput = $("file");
+  var captureInput = $("capture");
 
   var camOn = false;
   var facing = "environment";
+
+  // This page is normally viewed inside a cross-origin iframe. Live camera
+  // access needs the embedding frame to grant it via Permissions Policy; when
+  // it doesn't, getUserMedia rejects no matter what the user allows. Opening
+  // the page as its own top-level tab lifts that restriction.
+  var embedded = true;
+  try { embedded = window.self !== window.top; } catch (e) { embedded = true; }
+
+  var touchLike = false;
+  try { touchLike = window.matchMedia("(pointer: coarse)").matches; } catch (e) {}
+
+  // true = definitely blocked, false = definitely allowed, null = can't tell
+  function cameraPolicy() {
+    try {
+      var fp = document.featurePolicy || document.permissionsPolicy;
+      if (fp && typeof fp.allowsFeature === "function") return !fp.allowsFeature("camera");
+    } catch (e) {}
+    return null;
+  }
 
   function setNote(msg, isErr) {
     note.textContent = msg;
     note.classList.toggle("err", !!isErr);
   }
 
+  // Offer a retry when the decoder library couldn't be fetched.
+  function setLoadError(msg) {
+    note.textContent = msg + " ";
+    note.classList.add("err");
+    var retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "inline";
+    retry.textContent = "Retry";
+    retry.onclick = function () {
+      setNote("Loading the decoder…");
+      libPromise = null;
+      libFailed = false;
+      loadLib().then(function () {
+        setNote("Decoder ready. Start the camera or load a photo.");
+      }, function () {
+        setLoadError("Still can't reach the decoder library.");
+      });
+    };
+    note.appendChild(retry);
+  }
+
+  // ---------- lazy decoder library ----------
+  // The ZXing bundle is fetched on demand rather than as a render-blocking
+  // <script> tag, so the page always paints even on a slow or filtered
+  // connection, and a failed fetch degrades to a message instead of a dead page.
+  var LIB_SRC = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
+  var LIB_TIMEOUT = 20000;
+  var libPromise = null;
+  var libFailed = false;
+  var reader = null;
+
+  function loadLib() {
+    if (libPromise) return libPromise;
+    libPromise = new Promise(function (resolve, reject) {
+      if (window.ZXing) { resolve(window.ZXing); return; }
+      var el = document.createElement("script");
+      var settled = false;
+      var timer = setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        libFailed = true;
+        reject(new Error("timeout"));
+      }, LIB_TIMEOUT);
+      el.async = true;
+      el.src = LIB_SRC;
+      el.onload = function () {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (window.ZXing) resolve(window.ZXing);
+        else { libFailed = true; reject(new Error("no global")); }
+      };
+      el.onerror = function () {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        libFailed = true;
+        reject(new Error("network"));
+      };
+      document.head.appendChild(el);
+    });
+    return libPromise;
+  }
+
+  function getReader() {
+    return loadLib().then(function (Z) {
+      if (!reader) {
+        var hints = new Map();
+        hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, FORMATS.map(function (f) { return Z.BarcodeFormat[f]; }));
+        hints.set(Z.DecodeHintType.TRY_HARDER, true);
+        reader = new Z.BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
+      }
+      return reader;
+    });
+  }
+
+  // Warm the library up in the background once the page has painted, so the
+  // first tap is instant when the network is healthy.
+  function preloadLib() {
+    loadLib().catch(function () { /* surfaced on first real use */ });
+  }
+  if (window.requestIdleCallback) requestIdleCallback(preloadLib, { timeout: 3000 });
+  else setTimeout(preloadLib, 1200);
+
   function prettyFormat(fmt) {
     var s = fmt;
-    if (typeof s === "number") s = Z.BarcodeFormat[s];   // getBarcodeFormat() returns a numeric enum
+    if (typeof s === "number" && window.ZXing) s = window.ZXing.BarcodeFormat[s]; // getBarcodeFormat() returns a numeric enum
     s = String(s).toUpperCase().replace(/_/g, " ");
     var map = {
       "QR CODE": "QR Code", "MICRO QR CODE": "Micro QR", "RMQR CODE": "rMQR",
@@ -539,7 +683,6 @@
   function copy(text, btn) {
     var done = function () {
       if (!btn) return;
-      var label = btn.querySelector("svg") ? null : btn.textContent;
       var old = btn.innerHTML;
       btn.innerHTML = "Copied";
       setTimeout(function () { btn.innerHTML = old; }, 1200);
@@ -617,34 +760,74 @@
   }
 
   // ---------- camera ----------
+  // Live scanning is unavailable here — point at the ways out that do work.
+  function offerFallbacks(why) {
+    var bits = [why];
+    if (touchLike) bits.push("Tap “Take photo” to shoot the code with your phone’s own camera app — it decodes just the same.");
+    if (embedded) {
+      btnTab.hidden = false;
+      bits.push("Or tap “Open in a tab” to run Reticle as its own page, where live scanning is allowed.");
+    } else {
+      bits.push("Or load a photo of the code.");
+    }
+    setNote(bits.join(" "), true);
+  }
+
   function startCam() {
+    if (!window.isSecureContext) {
+      offerFallbacks("Cameras only work on secure (https) pages.");
+      return;
+    }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setNote("This browser won't grant camera access here. Load a photo instead — or open Reticle in its own browser tab.", true);
+      offerFallbacks(embedded
+        ? "This embedded page isn’t allowed to reach the camera."
+        : "This browser won’t grant camera access here.");
+      return;
+    }
+    if (cameraPolicy() === true) {
+      offerFallbacks("The camera is blocked in this embedded page — that’s the page it’s embedded in deciding, not a permission you can grant.");
       return;
     }
     stopImage();
-    reader.decodeFromConstraints(
-      { video: { facingMode: { ideal: facing } } },
-      video,
-      function (res, err) {
-        if (res) onHit(res.getText(), res.getBarcodeFormat());
-      }
-    ).then(function () {
+    setNote("Starting the camera…");
+    btnCam.disabled = true;
+    getReader().then(function (rd) {
+      return rd.decodeFromConstraints(
+        { video: { facingMode: { ideal: facing } } },
+        video,
+        function (res) {
+          if (res) onHit(res.getText(), res.getBarcodeFormat());
+        }
+      );
+    }).then(function () {
+      btnCam.disabled = false;
       camOn = true;
       stage.classList.add("mode-camera");
       btnCam.innerHTML = stopIcon() + " Stop camera";
       btnFlip.hidden = false;
       setNote("Hold steady and fill the bracket with the code. It scans continuously.");
     }).catch(function (e) {
-      var m = "Couldn't start the camera.";
-      if (e && (e.name === "NotAllowedError" || e.name === "SecurityError")) m = "Camera permission was blocked. Allow it for this page, or load a photo instead.";
-      else if (e && e.name === "NotFoundError") m = "No camera found on this device. Load a photo instead.";
-      else if (e && e.name === "NotReadableError") m = "The camera is in use by another app. Close that and try again.";
-      setNote(m, true);
+      btnCam.disabled = false;
+      if (libFailed) {
+        setLoadError("Couldn't load the decoder library — check the connection.");
+        return;
+      }
+      var name = e && e.name;
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        offerFallbacks(embedded
+          ? "The camera was refused. Embedded pages like this one usually can’t open it, however you answer the permission prompt."
+          : "Camera permission was blocked. Allow it for this page in your browser settings.");
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        offerFallbacks("No usable camera found on this device.");
+      } else if (name === "NotReadableError") {
+        setNote("The camera is in use by another app. Close that and try again.", true);
+      } else {
+        offerFallbacks("Couldn’t start the camera" + (name ? " (" + name + ")." : "."));
+      }
     });
   }
   function stopCam() {
-    try { reader.reset(); } catch (e) {}
+    try { if (reader) reader.reset(); } catch (e) {}
     camOn = false;
     stage.classList.remove("mode-camera");
     btnCam.innerHTML = camIcon() + " Start camera";
@@ -668,6 +851,30 @@
   var canvas = document.createElement("canvas");
   var ctx = canvas.getContext("2d", { willReadFrequently: true });
 
+  // Phone browsers kill the tab if a canvas gets too big, and a 12-megapixel
+  // camera roll photo upscaled 4x is far past that. Cap the working area.
+  var MAX_PIXELS = 4000000;
+
+  function canvasToProbe(cv) {
+    return new Promise(function (resolve) {
+      var probe = new Image();
+      var url = null;
+      probe.onload = function () { resolve({ img: probe, url: url }); };
+      probe.onerror = function () { if (url) URL.revokeObjectURL(url); resolve(null); };
+      if (cv.toBlob) {
+        cv.toBlob(function (blob) {
+          if (!blob) { resolve(null); return; }
+          url = URL.createObjectURL(blob);
+          probe.src = url;
+        }, "image/png");
+      } else {
+        var data;
+        try { data = cv.toDataURL("image/png"); } catch (e) { resolve(null); return; }
+        probe.src = data;
+      }
+    });
+  }
+
   function decodeImageElement(img) {
     var attempts = [];
     var base = Math.max(img.naturalWidth, img.naturalHeight) || 1000;
@@ -677,31 +884,34 @@
       attempts.push({ scale: s, contrast: true });
     });
 
-    return (function next(i) {
-      if (i >= attempts.length) return Promise.resolve(null);
-      var a = attempts[i];
-      var w = Math.round(img.naturalWidth * a.scale);
-      var h = Math.round(img.naturalHeight * a.scale);
-      if (w < 40 || h < 40 || w > 6000 || h > 6000) return next(i + 1);
-      canvas.width = w; canvas.height = h;
-      ctx.filter = a.contrast ? "grayscale(1) contrast(1.9) brightness(1.05)" : "none";
-      ctx.drawImage(img, 0, 0, w, h);
-      var url;
-      try { url = canvas.toDataURL("image/png"); } catch (e) { return Promise.resolve(null); }
-      var probe = new Image();
-      return new Promise(function (resolve) {
-        probe.onload = function () {
-          reader.decodeFromImageElement(probe)
-            .then(function (res) { resolve(res); })
-            .catch(function () { resolve(null); });
-        };
-        probe.onerror = function () { resolve(null); };
-        probe.src = url;
-      }).then(function (res) {
-        if (res) return res;
-        return next(i + 1);
-      });
-    })(0);
+    return getReader().then(function (rd) {
+      return (function next(i) {
+        if (i >= attempts.length) return Promise.resolve(null);
+        var a = attempts[i];
+        var w = Math.round(img.naturalWidth * a.scale);
+        var h = Math.round(img.naturalHeight * a.scale);
+        if (w * h > MAX_PIXELS) {
+          var k = Math.sqrt(MAX_PIXELS / (w * h));
+          w = Math.round(w * k);
+          h = Math.round(h * k);
+        }
+        if (w < 40 || h < 40) return next(i + 1);
+        canvas.width = w; canvas.height = h;
+        ctx.filter = a.contrast ? "grayscale(1) contrast(1.9) brightness(1.05)" : "none";
+        ctx.drawImage(img, 0, 0, w, h);
+        return canvasToProbe(canvas).then(function (p) {
+          if (!p) return next(i + 1);
+          return rd.decodeFromImageElement(p.img)
+            .then(function (res) { return res; })
+            .catch(function () { return null; })
+            .then(function (res) {
+              if (p.url) URL.revokeObjectURL(p.url);
+              if (res) return res;
+              return next(i + 1);
+            });
+        });
+      })(0);
+    });
   }
 
   function handleImage(src, label) {
@@ -721,6 +931,10 @@
         } else {
           setNote("No code found in that image. Try a sharper crop, better light, or less glare.", true);
         }
+      }, function () {
+        busy.classList.remove("on");
+        if (libFailed) setLoadError("Couldn't load the decoder library — check the connection.");
+        else setNote("Couldn't decode that image.", true);
       });
     };
     img.onerror = function () {
@@ -741,8 +955,35 @@
     fr.readAsDataURL(file);
   }
 
-  $("btn-file").onclick = function () { fileInput.click(); };
+  btnFile.onclick = function () { fileInput.click(); };
   fileInput.onchange = function () { if (fileInput.files && fileInput.files[0]) readFile(fileInput.files[0]); fileInput.value = ""; };
+
+  // Hands off to the phone's own camera app and decodes what comes back. Needs
+  // no getUserMedia, so it keeps working where live scanning is blocked.
+  btnShot.onclick = function () { captureInput.click(); };
+  captureInput.onchange = function () {
+    if (captureInput.files && captureInput.files[0]) readFile(captureInput.files[0]);
+    captureInput.value = "";
+  };
+
+  btnTab.onclick = function () {
+    window.open(window.location.href, "_blank", "noopener");
+  };
+
+  if (touchLike) btnShot.hidden = false;
+  if (embedded && cameraPolicy() === true) {
+    btnTab.hidden = false;
+    // Live scanning can't work here, so lead with what can.
+    btnCam.classList.remove("primary");
+    (touchLike ? btnShot : btnTab).classList.add("primary");
+    var hint = document.querySelector(".stage-hint div");
+    if (hint) hint.textContent = touchLike
+      ? "Take a photo of the code, or load one from your library."
+      : "Drop or paste an image here, or load a photo.";
+    setNote("Live camera scanning is blocked in this embedded view. " +
+      (touchLike ? "Tap “Take photo” to shoot the code, or “Open in a tab” for live scanning."
+                 : "Use “Open in a tab” for live scanning, or load a photo."));
+  }
 
   // drag & drop
   ["dragenter", "dragover"].forEach(function (ev) {
@@ -777,3 +1018,5 @@
   loadHist();
 })();
 </script>
+</body>
+</html>
