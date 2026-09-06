@@ -1,6 +1,6 @@
 // Reticle service worker — precache the whole app so it runs with no network.
 // The decoder library is inlined into index.html, so there is nothing else to fetch.
-var VERSION = "reticle-v1";
+var VERSION = "reticle-v2";
 var ASSETS = [
   "./",
   "./index.html",
