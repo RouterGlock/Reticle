@@ -827,12 +827,29 @@
     setNote("Starting the camera…");
     btnCam.disabled = true;
     getReader().then(function (rd) {
+      // The bundled decoder's continuous-scan loop only reschedules itself
+      // after NotFoundException/ChecksumException/FormatException — the three
+      // "nothing in this frame" cases. Any other exception (seen in practice
+      // on some real cameras, rarely on a curated test image) leaves it dead:
+      // the video keeps playing but it never attempts another decode. Relaunch
+      // it ourselves when that happens instead of leaving a live feed that
+      // silently never scans again.
+      function scanCallback(res, err) {
+        if (res) { onHit(res.getText(), res.getBarcodeFormat()); return; }
+        if (!camOn || !err) return;
+        var Z = window.ZXing;
+        var expected = Z && (err instanceof Z.NotFoundException ||
+          err instanceof Z.ChecksumException || err instanceof Z.FormatException);
+        if (!expected) {
+          setTimeout(function () {
+            if (camOn) rd.decodeContinuously(video, scanCallback);
+          }, 150);
+        }
+      }
       return rd.decodeFromConstraints(
         { video: { facingMode: { ideal: facing } } },
         video,
-        function (res) {
-          if (res) onHit(res.getText(), res.getBarcodeFormat());
-        }
+        scanCallback
       );
     }).then(function () {
       btnCam.disabled = false;
